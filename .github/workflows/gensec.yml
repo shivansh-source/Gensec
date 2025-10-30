@@ -1,0 +1,32 @@
+name: GenSec Agent - Self-Healing
+
+on:
+  schedule:
+    - cron: '0 1 * * *'
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+
+jobs:
+  run-agent:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Checkout repository code
+        uses: actions/checkout@v4
+
+      - name: 2. Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 3. Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: 4. Run the GenSec Agent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GENSEC_AGENT_TOKEN }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}  # <-- This is the corrected line
+          GITHUB_USER: ${{ github.repository_owner }}
+        run: python agent_v3.py

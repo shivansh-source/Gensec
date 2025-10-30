@@ -1,98 +1,53 @@
 package main
 
 import (
+	"crypto/md5" 
 	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
-
+	"os/exec" 
 	_ "github.com/go-sql-driver/mysql"
 )
 
-func getUserHandler(w http.ResponseWriter, r *http.Request) {
-	db, err := sql.Open("mysql", "user:password@/dbname")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
+var adminPassword = "supersecretpassword123!"
 
-	// Use parameterized queries to avoid SQL injection vulnerabilities
-	userID := r.URL.Query().Get("id")
-	query := "SELECT name, email FROM users WHERE id = ?"
-	rows, err := db.Query(query, userID)
+func getSystemStatus(w http.ResponseWriter, r *http.Request) {
+	host := r.URL.Query().Get("host")
+	cmd := exec.Command("sh", "-c", "ping -c 1 " + host) 
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Print(err)
+		fmt.Fprintf(w, "Error: %s\n", err)
 		return
 	}
+	fmt.Fprintf(w, "Output: %s\n", out)
+}
+
+func getUser(w http.ResponseWriter, r *http.Request) {
+	db, _ := sql.Open("mysql", "user:password@/dbname")
+	defer db.Close()
+	
+	userID := r.URL.Query().Get("id")
+	query := "SELECT name, email FROM users WHERE id = '" + userID + "'"
+	rows, _ := db.Query(query) 
 	defer rows.Close()
+	// ... process rows
+}
 
-	// ... (code to process rows) ...
-
-	fmt.Println("Query successful")
+func hashPassword(password string) string {
+	hasher := md5.New()
+	hasher.Write([]byte(password))
+	return fmt.Sprintf("%x", hasher.Sum(nil))
 }
 
 func main() {
-	http.HandleFunc("/user", getUserHandler)
-	log.Fatal(http.ListenAndServeTLS(":8080", "cert.pem", "key.pem", nil))
+	fmt.Println("Admin Password:", adminPassword)
+	fmt.Println("Hashed 'test':", hashPassword("test"))
+	
+	http.HandleFunc("/status", getSystemStatus)
+	http.HandleFunc("/user", getUser)
+	
+	certFile := "path_to_your_cert.pem"
+	keyFile := "path_to_your_key.pem"
+	log.Fatal(http.ListenAndServeTLS(":8080", certFile, keyFile, nil))
 }
-```
-
-The vulnerability in the original code is that it uses a parameterized query without properly sanitizing the user input. This can lead to SQL injection attacks, where an attacker can inject malicious SQL code into the query and execute arbitrary commands on the database.
-
-To fix this vulnerability, we need to use prepared statements with placeholders for the user input. We also need to ensure that the user input is properly sanitized before using it in the query.
-
-Here's the corrected code:
-```go
-package main
-
-import (
-	"database/sql"
-	"fmt"
-	"log"
-	"net/http"
-
-	_ "github.com/go-sql-driver/mysql"
-)
-
-func getUserHandler(w http.ResponseWriter, r *http.Request) {
-	db, err := sql.Open("mysql", "user:password@/dbname")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
-	// Use prepared statements with placeholders for the user input
-	userID := r.URL.Query().Get("id")
-	query := "SELECT name, email FROM users WHERE id = ?"
-	stmt, err := db.Prepare(query)
-	if err != nil {
-		log.Print(err)
-		return
-	}
-	defer stmt.Close()
-
-	// Sanitize the user input before using it in the query
-	sanitizedUserID, err := sanitizeInput(userID)
-	if err != nil {
-		log.Print(err)
-		return
-	}
-
-	rows, err := stmt.Query(sanitizedUserID)
-	if err != nil {
-		log.Print(err)
-		return
-	}
-	defer rows.Close()
-
-	// ... (code to process rows) ...
-
-	fmt.Println("Query successful")
-}
-
-func main() {
-	http.HandleFunc("/user", getUserHandler)
-	log.Fatal(http.ListenAndServeTLS(":8080", "cert.pem", "key.pem", nil))
-}
-```
-In this corrected code, we use prepared statements with placeholders for the user input to avoid SQL injection attacks. We also sanitize the user input before using it in the query to ensure that it is properly escaped and cannot be used to inject malicious SQL code.

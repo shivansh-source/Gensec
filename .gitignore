@@ -1,0 +1,11 @@
+# Semgrep scan reports
+report.json
+verify_report.json
+
+# Fixed code (temporary)
+fixed_app.go
+
+# Python cache
+__pycache__/
+*.pyc
+.pytest_cache/
