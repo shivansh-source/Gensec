@@ -47,7 +47,6 @@ def fetch_code_from_github():
         print(f"❌ (GitHub): Error connecting to GitHub: {e}")
         return None, None
 
-
 def run_scanner():
     """
     Run Semgrep with VALID rule sets only
