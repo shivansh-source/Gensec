@@ -16,11 +16,9 @@ func getUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer db.Close()
 
-	// THIS IS THE FIXED LINE - Use parameterized queries instead of string concatenation
+	// Use parameterized queries to avoid SQL injection vulnerabilities
 	userID := r.URL.Query().Get("id")
-	query := "SELECT name, email FROM users WHERE id = ?" // <-- Check this line carefully
-
-	// Run the query
+	query := "SELECT name, email FROM users WHERE id = ?"
 	rows, err := db.Query(query, userID)
 	if err != nil {
 		log.Print(err)
@@ -29,6 +27,7 @@ func getUserHandler(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	// ... (code to process rows) ...
+
 	fmt.Println("Query successful")
 }
 
