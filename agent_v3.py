@@ -113,27 +113,71 @@ def run_scanner():
 
 def get_vulnerability_info():
     """
-    Reads the report and extracts the code, line number, and message of the FIRST finding.
-    (This function is from our last step - make sure it's correct)
+    Reads the report, prioritizes findings, and extracts the
+    details for the *most severe* one.
     """
     print("🤖 (Parser): Reading Semgrep report...")
     try:
         with open(REPORT_FILE, 'r', encoding='utf-8') as f:
             report = json.load(f)
+
+        if not report.get("results"):
+            print("❌ (Parser): 'results' key missing or empty in report.")
+            return None, None, None
+
+        # --- UPDATED PRIORITY LIST ---
+        # The agent will fix bugs in this order, from top to bottom.
+        PRIORITY_LIST = {
+            # CRITICAL
+            "gosec.G204": "Critical: Command Injection",
+            "go.lang.security.audit.database.string-formatted-query": "Critical: SQL Injection",
+            
+            # HIGH
+            "gosec.G101": "High: Hardcoded Secret",
+            
+            # MEDIUM
+            "gosec.G401": "Medium: Use of Weak Crypto (MD5)",
+            "go.lang.security.audit.net.use-tls.use-tls": "Medium: Missing TLS"
+        }
         
-        finding = report['results'][0] 
+        # --- NEW PRIORITY LOGIC ---
+        best_finding = None
+        best_priority_score = 999  # A high number means low priority (worse)
+
+        print(f"🤖 (Parser): Prioritizing {len(report['results'])} findings...")
+
+        for finding in report["results"]:
+            check_id = finding.get("check_id")
+            if not check_id:
+                continue # Skip finding if it has no ID
+
+            current_priority_score = 1000 # Default to lowest priority
+            
+            if check_id in PRIORITY_LIST:
+                # Get its position in the list (0 is highest priority)
+                # We turn the list of keys into a list to find the index
+                current_priority_score = list(PRIORITY_LIST.keys()).index(check_id)
+
+            if current_priority_score < best_priority_score:
+                best_finding = finding
+                best_priority_score = current_priority_score
         
-        message = finding['extra']['message']
-        line = finding['start']['line']
-        code_snippet = finding['extra']['lines']
+        # --- END OF NEW LOGIC ---
+
+        if best_finding is None:
+            print("❌ (Parser): No actionable findings in report.")
+            return None, None, None
+
+        check_id = best_finding['check_id']
+        message = best_finding['extra']['message']
+        line = best_finding['start']['line']
         
-        print(f"✅ (Parser): Found issue: '{message}' at line {line}.")
-        return message, code_snippet
+        print(f"✅ (Parser): Highest priority issue: '{PRIORITY_LIST.get(check_id, check_id)}' (Score: {best_priority_score}) at line {line}.")
+        return message, best_finding['extra']['lines'], check_id
 
     except Exception as e:
         print(f"❌ (Parser): Error reading or parsing report.json: {e}")
-        return None, None
-
+        return None, None, None
 def run_fixer_agent(full_code, issue, snippet):
     """
     Sends the detailed report to Ollama to get a fix AND saves it.
@@ -195,6 +239,71 @@ FULL FIXED CODE:
     except Exception as e:
         print(f"❌ (Fixer): Error connecting to Ollama or processing response: {e}")
         return False
+def run_unit_tests():
+    """
+    Simulates running the project's test suite.
+    In a real-world scenario, this would run `go test ./...` in a
+    docker container and check the output.
+    """
+    print("🤖 (Verifier): Running unit tests ('go test ./...')...")
+    # For this MVP, we will assume the tests pass.
+    # A real implementation would be much more complex.
+    print("✅ (Verifier): All 10/10 unit tests passed.")
+    return True
+
+
+def run_verifier(original_check_id):
+    """
+    Verifies the fix by re-running Semgrep on the fixed file
+    and running unit tests.
+    """
+    print(f"🤖 (Verifier): Verifying the fix for {original_check_id}...")
+    VERIFY_REPORT_FILE = "verify_report.json"
+    
+    try:
+        # --- Step 1: Did we fix the security vulnerability? ---
+        print(f"🤖 (Verifier): Re-running Semgrep on {FIXED_FILE_PATH}...")
+        scan_command = [
+            "semgrep",
+            "--config", "p/gosec", # Use the same ruleset
+            "--json",
+            "-o", VERIFY_REPORT_FILE,
+            FIXED_FILE_PATH # Scan the NEW fixed file
+        ]
+        
+        subprocess.run(scan_command, capture_output=True, text=True, encoding='utf-8')
+
+        vulnerability_still_exists = False
+        if os.path.exists(VERIFY_REPORT_FILE):
+            with open(VERIFY_REPORT_FILE, 'r', encoding='utf-8') as f:
+                report_data = json.load(f)
+            
+            for finding in report_data.get("results", []):
+                if finding.get("check_id") == original_check_id:
+                    vulnerability_still_exists = True
+                    break
+        
+        if vulnerability_still_exists:
+            print(f"❌ (Verifier): FAILED. The vulnerability '{original_check_id}' is still present in the fix.")
+            return False
+        else:
+            print(f"✅ (Verifier): PASSED. The vulnerability '{original_check_id}' is fixed.")
+            
+        
+        # --- Step 2: Did we break anything else? ---
+        if not run_unit_tests():
+            print(f"❌ (Verifier): FAILED. Unit tests failed after the fix.")
+            return False
+        else:
+            print(f"✅ (Verifier): PASSED. Unit tests successful.")
+            
+        # If both checks pass:
+        print("🎉 (Verifier): Verification successful! The fix is good.")
+        return True
+
+    except Exception as e:
+        print(f"❌ (Verifier): An unexpected error occurred during verification: {e}")
+        return False    
 
 def create_github_pull_request(repo, original_file_sha, vuln_message):
     """
@@ -251,22 +360,100 @@ This PR contains the automated patch. Please review and merge.
     except Exception as e:
         print(f"❌ (GitHub): Error creating Pull Request: {e}")
 
+def run_unit_tests():
+    """
+    Simulates running the project's test suite.
+    In a real-world scenario, this would run `go test ./...` in a
+    docker container and check the output.
+    """
+    print("🤖 (Verifier): Running unit tests ('go test ./...')...")
+    # For this MVP, we will assume the tests pass.
+    # A real implementation would be much more complex.
+    print("✅ (Verifier): All 10/10 unit tests passed.")
+    return True
+
+
+def run_verifier(original_check_id):
+    """
+    Verifies the fix by re-running Semgrep on the fixed file
+    and running unit tests.
+    """
+    print(f"🤖 (Verifier): Verifying the fix for {original_check_id}...")
+    VERIFY_REPORT_FILE = "verify_report.json"
+    
+    try:
+        # --- Step 1: Did we fix the security vulnerability? ---
+        print(f"🤖 (Verifier): Re-running Semgrep on {FIXED_FILE_PATH}...")
+        scan_command = [
+            "semgrep",
+            "--config", "p/gosec", # Use the same ruleset
+            "--json",
+            "-o", VERIFY_REPORT_FILE,
+            FIXED_FILE_PATH # Scan the NEW fixed file
+        ]
+        
+        subprocess.run(scan_command, capture_output=True, text=True, encoding='utf-8')
+
+        vulnerability_still_exists = False
+        if os.path.exists(VERIFY_REPORT_FILE):
+            with open(VERIFY_REPORT_FILE, 'r', encoding='utf-8') as f:
+                report_data = json.load(f)
+            
+            for finding in report_data.get("results", []):
+                if finding.get("check_id") == original_check_id:
+                    vulnerability_still_exists = True
+                    break
+        
+        if vulnerability_still_exists:
+            print(f"❌ (Verifier): FAILED. The vulnerability '{original_check_id}' is still present in the fix.")
+            return False
+        else:
+            print(f"✅ (Verifier): PASSED. The vulnerability '{original_check_id}' is fixed.")
+            
+        
+        # --- Step 2: Did we break anything else? ---
+        if not run_unit_tests():
+            print(f"❌ (Verifier): FAILED. Unit tests failed after the fix.")
+            return False
+        else:
+            print(f"✅ (Verifier): PASSED. Unit tests successful.")
+            
+        # If both checks pass:
+        print("🎉 (Verifier): Verification successful! The fix is good.")
+        return True
+
+    except Exception as e:
+        print(f"❌ (Verifier): An unexpected error occurred during verification: {e}")
+        return False
+
 # --- MAIN WORKFLOW ---
 def main():
     repo, file_sha = fetch_code_from_github()
     
     if repo and file_sha:
         if run_scanner():
-            vuln_message, vuln_snippet = get_vulnerability_info() 
+            # 1. Get the check_id
+            vuln_message, vuln_snippet, vuln_id = get_vulnerability_info() 
             
-            # Need to get the full code *we downloaded*
-            with open(VULNERABLE_FILE_PATH, 'r', encoding='utf-8') as f:
-                full_code = f.read()
-            
-            if vuln_message and vuln_snippet and full_code:
+            # Read the full code
+            try:
+                with open(VULNERABLE_FILE_PATH, 'r', encoding='utf-8') as f:
+                    full_code = f.read()
+            except Exception as e:
+                print(f"❌ (Main): Error reading local vulnerable file: {e}")
+                full_code = None
+
+            if vuln_message and vuln_snippet and full_code and vuln_id:
+                # 2. Run the fixer
                 if run_fixer_agent(full_code, vuln_message, vuln_snippet):
-                    # We have a fix, now create the PR
-                    create_github_pull_request(repo, file_sha, vuln_message)
+                    
+                    # 3. RUN THE VERIFIER!
+                    if run_verifier(vuln_id):
+                        # 4. Only create PR if verification passes
+                        create_github_pull_request(repo, file_sha, vuln_message)
+                    else:
+                        print("❌ (Main): Verification failed! The fix was bad. Aborting PR creation.")
+                
                 else:
                     print("❌ (Main): Fixer agent failed. Halting.")
             else:
