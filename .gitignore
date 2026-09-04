@@ -13,6 +13,10 @@ gensec_pr_body.md
 # Backup files created during fix
 *.gensec.bak
 
+# Local run/debug output — never useful to commit
+*.log
+output.txt
+
 # Go
 *.test
 /vendor/
