@@ -1,4 +1,4 @@
-package main
+package vulnerable
 
 import (
 	"io/ioutil"
@@ -10,10 +10,10 @@ import (
 func VulnerableFileDownload(w http.ResponseWriter, r *http.Request) {
 	// SECURITY ISSUE: User input used directly in file path
 	filename := r.URL.Query().Get("file")
-	
+
 	// Attacker could use: ?file=../../../../etc/passwd
 	filePath := "/uploads/" + filename
-	
+
 	data, _ := ioutil.ReadFile(filePath)
 	w.Write(data)
 }
@@ -21,17 +21,17 @@ func VulnerableFileDownload(w http.ResponseWriter, r *http.Request) {
 // FIXED: Path Traversal Protection
 func SecureFileDownload(w http.ResponseWriter, r *http.Request) {
 	filename := r.URL.Query().Get("file")
-	
+
 	// Clean the path and ensure it's within the allowed directory
 	basePath := "/uploads/"
 	cleanPath := filepath.Clean(filepath.Join(basePath, filename))
-	
+
 	// Ensure the resolved path is within basePath
 	if !isInDirectory(cleanPath, basePath) {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
-	
+
 	data, _ := ioutil.ReadFile(cleanPath)
 	w.Write(data)
 }

@@ -385,7 +385,7 @@ func cmdScanAndFix() {
 }
 
 func printUsage() {
-	fmt.Println(`
+	fmt.Print(`
 🤖 GenSec Pro v3 - Autonomous Vulnerability Fixer with Data Flow Flagging
 
 Usage:

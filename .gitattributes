@@ -1,0 +1,6 @@
+# Normalize line endings to LF in the working tree on every platform,
+# regardless of the cloning machine's core.autocrlf setting. Without this,
+# a Windows clone with Git's common core.autocrlf=true default checks out
+# every text file (including all .go source) as CRLF, which gofmt then
+# flags wholesale even though the committed blobs are plain LF.
+* text=auto eol=lf

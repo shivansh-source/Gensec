@@ -12,18 +12,18 @@ const (
 	SeverityLOW      = "LOW"
 
 	// Phase configuration
-	MaxVulnsPerBatch    = 5
-	MaxAttemptsPerVuln  = 3
-	MaxPRsPerRun        = 5
-	AttemptCooldownHrs  = 24
+	MaxVulnsPerBatch   = 5
+	MaxAttemptsPerVuln = 3
+	MaxPRsPerRun       = 5
+	AttemptCooldownHrs = 24
 
 	// File paths
-	VulnerableFilePath  = "vulnerable_app.go"
-	ReportFileSemgrep   = "report_semgrep.json"
-	ReportFileGitleaks  = "report_gitleaks.json"
-	ReportFileTrivy     = "report_trivy.json"
-	ReportFileFlagged   = "report_flagged.json"
-	AttemptLogFile      = "attempt_log.json"
+	VulnerableFilePath = "vulnerable_app.go"
+	ReportFileSemgrep  = "report_semgrep.json"
+	ReportFileGitleaks = "report_gitleaks.json"
+	ReportFileTrivy    = "report_trivy.json"
+	ReportFileFlagged  = "report_flagged.json"
+	AttemptLogFile     = "attempt_log.json"
 
 	// API
 	GroqModel = "llama-3.3-70b-versatile"

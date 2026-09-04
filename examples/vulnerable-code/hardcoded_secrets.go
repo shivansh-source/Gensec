@@ -1,4 +1,8 @@
-package main
+// Package vulnerable holds standalone example snippets scanned by GenSec's
+// demo (see README Quick Start). They are never built or executed as part
+// of GenSec itself — GenSec only reads them as text — so this package name
+// just needs to compile, not run as a command.
+package vulnerable
 
 import (
 	"fmt"
@@ -7,9 +11,9 @@ import (
 // VULNERABLE: Hardcoded API Keys
 const (
 	// SECURITY ISSUE: Hardcoded credentials
-	apiKey = "sk-1234567890abcdefghijk"
+	apiKey     = "sk-1234567890abcdefghijk"
 	dbPassword = "admin@123456"
-	jwtSecret = "supersecretjwtkey12345"
+	jwtSecret  = "supersecretjwtkey12345"
 )
 
 // GetAPIKey - Exposes hardcoded API key
@@ -35,7 +39,7 @@ func InitializeConfig() map[string]string {
 	config := map[string]string{
 		"aws_access_key": "AKIAIOSFODNN7EXAMPLE",
 		"aws_secret_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-		"slack_webhook": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXX",
+		"slack_webhook":  "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXX",
 	}
 	return config
 }
@@ -48,7 +52,6 @@ func GetAPIKeySecure() string {
 
 func ConnectDatabaseSecure() error {
 	// Should use: os.Getenv("DB_PASSWORD")
-	connectionString := "postgres://admin:ENCRYPTED_PASSWORD@localhost:5432/mydb"
 	fmt.Println("Connecting to database...")
 	return nil
 }
