@@ -1,0 +1,77 @@
+# GenSec — Kubernetes CronJob
+#
+# Runs `gensec scan-and-fix` on a schedule against a target GitHub repo,
+# using the image built from this repo's Dockerfile. GenSec itself has no
+# Kubernetes-API integration (no client-go, no CRDs) — this manifest just
+# runs the same CLI/container you can run locally, in-cluster, on a timer.
+#
+# Config lives in one place: the same .env file used for the Docker
+# quickstart in the README (GROQ_API_KEY, GITHUB_TOKEN, GITHUB_USER,
+# GITHUB_REPO). Kubernetes Secrets are how GenSec gets that config
+# in-cluster — no code change needed, since GenSec already reads these via
+# plain os.Getenv, which is exactly how Kubernetes projects a Secret's keys
+# as container env vars (`envFrom.secretRef` below).
+#
+# Do not commit real values into a Secret object in this file — create the
+# Secret directly from your .env instead:
+#
+#   kubectl create namespace gensec
+#   kubectl create secret generic gensec-secrets -n gensec --from-env-file=.env
+#   kubectl apply -f deploy/k8s/cronjob.yaml
+#
+# Image below assumes shivansh-source/gensec on Docker Hub — change the
+# `image:` field if you publish under a different namespace.
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gensec
+  namespace: gensec
+spec:
+  schedule: "0 3 * * *" # daily at 03:00 UTC — edit to taste
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false # GenSec never talks to the k8s API
+          initContainers:
+            - name: clone-target
+              image: alpine/git:2.47.2
+              envFrom:
+                - secretRef:
+                    name: gensec-secrets
+              command:
+                - sh
+                - -c
+                - git clone --depth 1 "https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git" /scan
+              volumeMounts:
+                - name: workspace
+                  mountPath: /scan
+          containers:
+            - name: gensec
+              image: docker.io/shivansh-source/gensec:latest
+              args: ["scan-and-fix", "/scan"]
+              envFrom:
+                - secretRef:
+                    name: gensec-secrets
+              env:
+                - name: USER_PLAN
+                  value: "pro"
+              volumeMounts:
+                - name: workspace
+                  mountPath: /scan
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "1"
+                  memory: "1Gi"
+          volumes:
+            - name: workspace
+              emptyDir: {}

@@ -24,21 +24,70 @@ GenSec is an autonomous security agent that performs multi-phase vulnerability d
 
 ## 🚀 Quick Start
 
+### One command, one config file
+
+```bash
+git clone https://github.com/shivansh-source/gensec.git && cd gensec
+cp .env.example .env   # fill in GROQ_API_KEY at minimum
+docker run --rm --env-file .env -v "$(pwd)/examples/vulnerable-code:/scan" shivansh-source/gensec:latest scan /scan
+```
+
+That finds real vulnerabilities in the bundled example code in a few
+seconds — Semgrep, Gitleaks, Trivy, and GenSec's own pattern matcher all run
+inside the image, so nothing else needs to be installed locally. No GitHub
+credentials are needed for this first step.
+
+To run the full pipeline (scan → fix → open a PR), mount a real git clone
+of the repo you want fixed instead of the bundled example — the `pr` step
+needs an actual git history and a remote to push to, which a bare folder
+doesn't have:
+
+```bash
+git clone https://github.com/<you>/<target-repo>.git target
+docker run --rm --env-file .env -v "$(pwd)/target:/scan" shivansh-source/gensec:latest scan-and-fix /scan
+```
+
+`GITHUB_REPO` in `.env` must match `<you>/<target-repo>`, and `GITHUB_TOKEN`
+needs push access to it.
+
+### Deploying to Kubernetes
+
+GenSec has no Kubernetes-API integration of its own — it's a CLI, not an
+operator or controller — but the same image can run in-cluster on a
+schedule via a plain CronJob:
+
+```bash
+kubectl create namespace gensec
+kubectl create secret generic gensec-secrets -n gensec --from-env-file=.env
+kubectl apply -f deploy/k8s/cronjob.yaml
+```
+
+See [deploy/k8s/cronjob.yaml](deploy/k8s/cronjob.yaml) for the full manifest
+and what it assumes (it clones `GITHUB_REPO` into an `emptyDir` via an init
+container, then runs `scan-and-fix` against that clone).
+
 ### Prerequisites
 
-- **Go 1.24.5+**
-- **Groq API Key** (for LLM triage)
-- **GitHub PAT** (for PR creation)
-- Docker (optional, for containerized scanning)
+- **Docker** — for the quickstart above (recommended; bundles Semgrep, Gitleaks, and Trivy)
+- **Groq API Key** — for LLM triage and fix generation
+- **GitHub PAT** — for PR creation only
+- **Go 1.24.5+** and **kubectl** — only needed for building from source or deploying to Kubernetes
 
-### Installation
+### Building from source
 
 ```bash
 git clone https://github.com/shivansh-source/gensec.git
 cd gensec
 go build -o gensec ./cmd/gensec
 ```
-## Environment Setup
+
+Building from source does **not** install Semgrep, Gitleaks, or Trivy.
+`gensec scan` currently fails silently (reports 0 findings, no warning) for
+any of the three that isn't on your `PATH` — install them yourself, or use
+the Docker image, which bundles all three.
+
+### Configuration
+
 ```bash
 export GROQ_API_KEY=gsk_...                          # Required for scanning
 export GITHUB_TOKEN=ghp_...                          # Required for PR creation
@@ -46,6 +95,9 @@ export GITHUB_USER=your-github-username              # GitHub username
 export GITHUB_REPO=owner/repo-name                   # Target repository
 export USER_PLAN=pro                                 # free|pro|enterprise
 ```
+
+Or put the same variables in a `.env` file at the repo root (see
+`.env.example`) — GenSec loads it automatically on startup.
 ## 📖 Commands
 ### Scan for Vulnerabilities
 bash
@@ -138,9 +190,8 @@ gensec_attempts.log - Attempt tracking log
 📦 Dependencies
 github.com/joho/godotenv - Environment variable loading
 🐳 Docker Support
-bash
-docker build -t gensec .
-docker run -e GROQ_API_KEY=gsk_... -e GITHUB_TOKEN=ghp_... gensec scan-and-fix /scan
+See "Quick Start" above for the maintained Docker and Kubernetes commands —
+this section used to duplicate an older, incomplete version of them.
 🔐 Security Considerations
 Keep API keys secure - use environment variables or secrets management
 Review generated fixes before merging PRs
