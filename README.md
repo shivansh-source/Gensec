@@ -92,6 +92,17 @@ Building from source does **not** install Semgrep, Gitleaks, or Trivy.
 scanner, no warning) for any of the three that isn't on your `PATH` — see
 Limitations. Install them yourself, or use the Docker image.
 
+### Web dashboard
+
+```bash
+gensec web        # http://localhost:8080, or gensec web <port>
+```
+
+A minimal, read-only dashboard: enter a path, click Scan, see the same
+findings `gensec scan` would print, in a table instead of a terminal. It
+never fixes anything or touches GitHub — no auth, not meant to be exposed
+beyond localhost or a trusted network.
+
 ## Architecture
 
 GenSec is a CLI, not a daemon. Each subcommand (`scan`, `fix`, `pr`) is a

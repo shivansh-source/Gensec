@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GenSec Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #161a21;
+    --border: #262b35;
+    --text: #e6e8eb;
+    --muted: #8b93a1;
+    --accent: #4f8cff;
+    --critical: #e5484d;
+    --high: #f5a623;
+    --medium: #e0c341;
+    --low: #4fb0c6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    background: var(--bg);
+    color: var(--text);
+    padding: 2rem;
+  }
+  header {
+    max-width: 960px;
+    margin: 0 auto 1.5rem;
+  }
+  h1 { font-size: 1.3rem; margin: 0 0 0.25rem; }
+  .subtitle { color: var(--muted); font-size: 0.85rem; }
+  form {
+    max-width: 960px;
+    margin: 0 auto 1.5rem;
+    display: flex;
+    gap: 0.5rem;
+  }
+  input[type=text] {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.6rem 0.8rem;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.9rem;
+  }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.9rem;
+  }
+  button:disabled { opacity: 0.6; cursor: default; }
+  .summary, .warning, .empty {
+    max-width: 960px;
+    margin: 0 auto 1rem;
+    font-size: 0.85rem;
+  }
+  .summary { color: var(--muted); }
+  .warning {
+    color: var(--high);
+    background: #2a2214;
+    border: 1px solid #4a3a1a;
+    padding: 0.6rem 0.8rem;
+    border-radius: 6px;
+  }
+  .empty { color: var(--muted); }
+  table {
+    max-width: 960px;
+    margin: 0 auto;
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { color: var(--muted); font-weight: 500; }
+  .sev { font-weight: 600; }
+  .sev-CRITICAL { color: var(--critical); }
+  .sev-HIGH { color: var(--high); }
+  .sev-MEDIUM { color: var(--medium); }
+  .sev-LOW { color: var(--low); }
+  .conf { color: var(--muted); }
+  .file { color: var(--muted); font-size: 0.78rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>GenSec Dashboard</h1>
+  <div class="subtitle">Scan a Go repo, see what it finds. Read-only — this view never fixes anything or opens a PR.</div>
+</header>
+
+<form id="scanForm">
+  <input type="text" id="pathInput" placeholder="Path to scan (e.g. . or /path/to/repo)" value=".">
+  <button type="submit" id="scanBtn">Scan</button>
+</form>
+
+<div id="output"></div>
+
+<script>
+const form = document.getElementById('scanForm');
+const btn = document.getElementById('scanBtn');
+const output = document.getElementById('output');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const path = document.getElementById('pathInput').value.trim() || '.';
+
+  btn.disabled = true;
+  btn.textContent = 'Scanning…';
+  output.innerHTML = '<div class="summary">Running Semgrep, Gitleaks, Trivy, and the pattern matcher — this can take a few seconds.</div>';
+
+  try {
+    const res = await fetch('/api/scan', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({path}),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      output.innerHTML = `<div class="warning">Request failed: ${escapeHTML(text)}</div>`;
+      return;
+    }
+    render(await res.json());
+  } catch (err) {
+    output.innerHTML = `<div class="warning">${escapeHTML(String(err))}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Scan';
+  }
+});
+
+function render(data) {
+  let html = '';
+
+  if (data.warning) {
+    html += `<div class="warning">${escapeHTML(data.warning)}</div>`;
+  }
+
+  html += `<div class="summary">${data.totalFindings} raw finding(s) → ${data.totalFlagged} flagged` +
+          (data.triaged ? ' → LLM-triaged (confidence ≥ 60% kept)' : '') + `</div>`;
+
+  const findings = data.findings || [];
+  if (findings.length === 0) {
+    html += '<div class="empty">No findings to show.</div>';
+    output.innerHTML = html;
+    return;
+  }
+
+  html += '<table><thead><tr><th>Severity</th><th>CWE</th><th>File</th><th>Message</th>' +
+          (data.triaged ? '<th>Confidence</th>' : '') + '</tr></thead><tbody>';
+
+  for (const f of findings) {
+    html += '<tr>';
+    html += `<td class="sev sev-${escapeHTML(f.Severity || '')}">${escapeHTML(f.Severity || '')}</td>`;
+    html += `<td>${escapeHTML(f.CWE || '')}</td>`;
+    html += `<td class="file">${escapeHTML(f.File || '')}:${f.Line || ''}</td>`;
+    html += `<td>${escapeHTML(f.Message || '')}</td>`;
+    if (data.triaged) {
+      const pct = typeof f.Confidence === 'number' ? Math.round(f.Confidence * 100) + '%' : '';
+      html += `<td class="conf">${pct}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+
+  output.innerHTML = html;
+}
+
+function escapeHTML(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+</script>
+
+</body>
+</html>

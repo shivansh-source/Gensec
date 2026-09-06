@@ -37,6 +37,8 @@ func main() {
 		cmdCreatePR()
 	case "scan-and-fix":
 		cmdScanAndFix()
+	case "web":
+		cmdWeb()
 	default:
 		fmt.Printf("Unknown command: %s\n", command)
 		printUsage()
@@ -392,6 +394,7 @@ Usage:
   gensec status                            # Show scan status
   gensec pr                                # Create a GitHub PR from current changes
   gensec scan-and-fix [path]               # 🔁 Scan → Fix → PR in one go   <-- NEW
+  gensec web [port]                        # Minimal web dashboard (default port 8080)
 
 Environment Variables:
   GROQ_API_KEY                             # Groq API key (required for scan/fix)
