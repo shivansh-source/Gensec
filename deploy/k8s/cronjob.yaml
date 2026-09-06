@@ -55,6 +55,14 @@ spec:
           containers:
             - name: gensec
               image: docker.io/shivansh-source/gensec:latest
+              # Kubernetes' default pull policy for a `:latest` tag is
+              # Always, which ignores any locally-loaded/cached copy of
+              # this image (e.g. via `kind load docker-image`) and always
+              # re-pulls from the registry. IfNotPresent avoids that; if
+              # you push a new `:latest` and want nodes to pick it up,
+              # bump this to a real version tag instead of relying on
+              # `:latest` + Always.
+              imagePullPolicy: IfNotPresent
               args: ["scan-and-fix", "/scan"]
               envFrom:
                 - secretRef:
