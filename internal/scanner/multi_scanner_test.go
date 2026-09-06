@@ -249,6 +249,33 @@ func Debug(password string) {
 	}
 }
 
+// TestRunGenSecPatterns_DotAsScanRoot is a regression test: filepath.Walk
+// reports the walk root itself with Name() == "." when the root is exactly
+// ".", which used to match the hidden-directory skip and discard the
+// entire tree before visiting a single file - meaning a scan root of "."
+// (the default for a bare `gensec scan`) always reported zero findings.
+func TestRunGenSecPatterns_DotAsScanRoot(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "case.go", `package main
+
+func Query(db *sql.DB, id string) {
+	query := "SELECT * FROM users WHERE id = " + id
+	db.Exec(query)
+}
+`)
+
+	t.Chdir(dir)
+
+	m := NewMultiScanner("free", ".")
+	findings, err := m.runGenSecPatterns()
+	if err != nil {
+		t.Fatalf("runGenSecPatterns() error = %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("scanning \".\" found %d findings, want 1 (got: %v)", len(findings), vulnIDs(findings))
+	}
+}
+
 func TestRunGenSecPatterns_EmptyDirectory(t *testing.T) {
 	dir := t.TempDir()
 

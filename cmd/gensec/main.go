@@ -267,11 +267,14 @@ func loadFileContent(root string) map[string]string {
 			return err
 		}
 
-		// Skip directories
+		// Skip hidden/vendor directories, but never the walk root itself -
+		// when root is exactly ".", filepath.Walk reports it with Name()
+		// == ".", which would otherwise match the hidden-dir check below
+		// and skip the entire tree before visiting a single file.
 		if info.IsDir() {
-			if strings.HasPrefix(info.Name(), ".") ||
+			if path != root && (strings.HasPrefix(info.Name(), ".") ||
 				info.Name() == "vendor" ||
-				info.Name() == "node_modules" {
+				info.Name() == "node_modules") {
 				return filepath.SkipDir
 			}
 			return nil

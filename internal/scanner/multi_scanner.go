@@ -254,9 +254,12 @@ func (m *MultiScanner) runGenSecPatterns() ([]Finding, error) {
 			return nil // skip on error, don't kill the whole scan
 		}
 		if info.IsDir() {
-			// skip vendor, node_modules, .git, etc.
+			// Skip vendor, node_modules, .git, etc. - but never the walk
+			// root itself. When walkRoot is exactly ".", filepath.Walk
+			// reports it with Name() == ".", which would otherwise match
+			// the hidden-dir check and skip the whole tree immediately.
 			base := info.Name()
-			if strings.HasPrefix(base, ".") || base == "vendor" || base == "node_modules" {
+			if path != walkRoot && (strings.HasPrefix(base, ".") || base == "vendor" || base == "node_modules") {
 				return filepath.SkipDir
 			}
 			return nil
