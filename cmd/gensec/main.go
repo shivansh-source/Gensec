@@ -46,14 +46,9 @@ func main() {
 func cmdScan() {
 	fmt.Println("\n🚀 GenSec Pro v3 - Data Flow Flagging Scanner")
 	fmt.Println("=" + strings.Repeat("=", 59))
-	fmt.Printf("Plan: %s\n", config.UserPlan)
+	fmt.Printf("Plan: %s\n", config.UserPlan())
 
-	// Validate credentials — re-read from env so .env loaded by godotenv is respected
-	groqKey := os.Getenv("GROQ_API_KEY")
-	if groqKey == "" {
-		groqKey = config.GroqAPIKey // fallback to package-level var (set at init)
-	}
-	if groqKey == "" {
+	if config.GroqAPIKey() == "" {
 		fmt.Println("Missing GROQ_API_KEY")
 		return
 	}
@@ -75,7 +70,7 @@ func cmdScan() {
 	fmt.Printf("📁 Loaded %d files\n", len(fileContent))
 
 	// Phase 1: Multi-Scanner
-	multiScanner := scanner.NewMultiScanner(config.UserPlan, scanRoot)
+	multiScanner := scanner.NewMultiScanner(config.UserPlan(), scanRoot)
 	findings, err := multiScanner.ScanAll()
 	if err != nil {
 		fmt.Printf("❌ Scanning failed: %v\n", err)
@@ -250,8 +245,8 @@ func cmdFix() {
 
 func cmdStatus() {
 	fmt.Println("📊 GenSec Status")
-	fmt.Printf("Plan: %s\n", config.UserPlan)
-	fmt.Printf("GitHub User: %s\n", config.GitHubUser)
+	fmt.Printf("Plan: %s\n", config.UserPlan())
+	fmt.Printf("GitHub User: %s\n", config.GitHubUser())
 
 	if _, err := os.Stat(config.ReportFileFlagged); err == nil {
 		data, _ := os.ReadFile(config.ReportFileFlagged)

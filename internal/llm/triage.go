@@ -20,7 +20,7 @@ type LLMTriager struct {
 func NewLLMTriager() *LLMTriager {
 	return &LLMTriager{
 		client: &http.Client{},
-		apiKey: config.GroqAPIKey,
+		apiKey: config.GroqAPIKey(),
 	}
 }
 

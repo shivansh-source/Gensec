@@ -26,16 +26,26 @@ const (
 	AttemptLogFile     = "attempt_log.json"
 
 	// API
-	GroqModel = "llama-3.3-70b-versatile"
+	// llama-3.3-70b-versatile was retired from Groq; qwen/qwen3.8-27b is a
+	// currently-available model that reliably returns complete (non-reasoning)
+	// responses within this package's existing token budgets.
+	GroqModel = "qwen/qwen3.8-27b"
 )
 
-var (
-	GitHubToken = os.Getenv("GITHUB_TOKEN")
-	GitHubUser  = os.Getenv("GITHUB_USER")
-	GroqAPIKey  = os.Getenv("GROQ_API_KEY")
-	UserPlan    = os.Getenv("USER_PLAN")
-	Concurrency = 4
-)
+var Concurrency = 4
+
+// GitHubToken, GitHubUser, GroqAPIKey, and UserPlan read their environment
+// variable fresh on every call, rather than caching it once. They used to
+// be plain package-level vars initialized via os.Getenv at package-init
+// time — but package-level var initialization runs before main() calls
+// godotenv.Load(), so a value only set via a .env file (not a real
+// exported environment variable) was silently never seen: these vars
+// would be permanently empty regardless of what .env contained. Calling
+// os.Getenv fresh here fixes that for every caller at once.
+func GitHubToken() string { return os.Getenv("GITHUB_TOKEN") }
+func GitHubUser() string  { return os.Getenv("GITHUB_USER") }
+func GroqAPIKey() string  { return os.Getenv("GROQ_API_KEY") }
+func UserPlan() string    { return os.Getenv("USER_PLAN") }
 
 type Severity int
 

@@ -20,7 +20,7 @@ type BatchFixer struct {
 func NewBatchFixer() *BatchFixer {
 	return &BatchFixer{
 		tracker: NewAttemptTracker(),
-		scanner: scanner.NewMultiScanner(config.UserPlan, "."),
+		scanner: scanner.NewMultiScanner(config.UserPlan(), "."),
 	}
 }
 
